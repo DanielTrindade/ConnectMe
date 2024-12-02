@@ -5,19 +5,25 @@ from datetime import datetime, timedelta
 import random
 import os
 from tqdm import tqdm
+import argparse
+import sys
 
 load_dotenv()
 
 fake = Faker('pt_BR')
 
 def connect_db():
-   return mysql.connector.connect(
-       host=os.getenv('DB_HOST'),
-       port=int(os.getenv('DB_PORT')),
-       user=os.getenv('DB_USER'),
-       password=os.getenv('DB_PASSWORD'),
-       database=os.getenv('DB_NAME')
-   )
+    try:
+        return mysql.connector.connect(
+            host=os.getenv('DB_HOST'),
+            port=int(os.getenv('DB_PORT')),
+            user=os.getenv('DB_USER'),
+            password=os.getenv('DB_PASSWORD'),
+            database=os.getenv('DB_NAME')
+        )
+    except mysql.connector.Error as err:
+        print(f"Erro ao conectar ao banco de dados: {err}")
+        sys.exit(1)
 
 def populate_estados(cursor):
     estados = [['Acre','AC'], ['Alagoas','AL'], ['Amapá','AP'], ['Amazonas','AM'], 
@@ -31,7 +37,7 @@ def populate_estados(cursor):
                ['Santa Catarina','SC'], ['São Paulo','SP'], ['Sergipe','SE'], 
                ['Tocantins','TO']]
     estado_ids = []
-    for estado in tqdm(estados, desc="🌍 Populando estados", unit="estado"):
+    for estado in tqdm(estados, desc="🌍 Populando estados ", unit="estado"):
         cursor.execute("INSERT INTO ESTADO (nome, uf) VALUES (%s, %s)", 
                       (estado[0], estado[1]))
         estado_ids.append(cursor.lastrowid)
@@ -39,7 +45,7 @@ def populate_estados(cursor):
 
 def populate_municipios(cursor, estado_ids, num_municipios=500):
     municipio_ids = []
-    for _ in tqdm(range(num_municipios), desc="🏘️ Populando municípios", unit="município"):
+    for _ in tqdm(range(num_municipios), desc="🏘️ Populando municípios ", unit="município"):
         estado_id = random.choice(estado_ids)
         cursor.execute("INSERT INTO MUNICIPIO (nome, estado_id) VALUES (%s, %s)",
                       (fake.city(), estado_id))
@@ -48,15 +54,9 @@ def populate_municipios(cursor, estado_ids, num_municipios=500):
 
 def populate_usuarios(cursor, municipio_ids, num_usuarios=3000):
    usuarios = []
-   used_emails = set()
    
-   for _ in tqdm(range(num_usuarios), desc="👤 Populando usuários", unit="usuário"):
-       while True:
-           email = fake.email()
-           if email not in used_emails:
-               used_emails.add(email)
-               break
-               
+   for _ in tqdm(range(num_usuarios), desc="👤 Populando usuários ", unit="usuário"):
+       email = fake.unique.email()
        data_nascimento = fake.date_of_birth(minimum_age=13, maximum_age=80)
        usuario = (
            fake.name(),
@@ -69,15 +69,12 @@ def populate_usuarios(cursor, municipio_ids, num_usuarios=3000):
            data_nascimento
        )
        
-       try:
-           cursor.execute("""
-               INSERT INTO USUARIO (nome, apelido, email, senha, foto, biografia, 
-                                  municipio_id, data_nascimento)
-               VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-           """, usuario)
-           usuarios.append(cursor.lastrowid)
-       except mysql.connector.IntegrityError:
-           continue
+       cursor.execute("""
+           INSERT INTO USUARIO (nome, apelido, email, senha, foto, biografia, 
+                               municipio_id, data_nascimento)
+           VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+       """, usuario)
+       usuarios.append(cursor.lastrowid)
            
    return usuarios
 
@@ -91,7 +88,7 @@ def populate_grupos(cursor, num_grupos=300):
 
 def populate_membros_grupo(cursor, usuario_ids, grupo_ids, num_membros=3000):
     papeis = ['admin', 'moderador', 'membro']
-    for _ in tqdm(range(num_membros), desc="🤝 Populando membros", unit="membro"):
+    for _ in tqdm(range(num_membros), desc="🤝 Populando membros ", unit="membro"):
         membro = (
             random.choice(papeis),
             random.choice(usuario_ids),
@@ -105,18 +102,28 @@ def populate_membros_grupo(cursor, usuario_ids, grupo_ids, num_membros=3000):
         except mysql.connector.Error:
             continue
 
-def populate_postagens(cursor, usuario_ids, grupo_ids, num_postagens=5000):
+def populate_postagens(cursor, usuario_ids, grupo_ids, num_postagens=5000, profile_post_percentage=0.5):
     tipos_midia = ['texto', 'imagem', 'video']
     postagens = []
-    for _ in tqdm(range(num_postagens), desc="📝 Populando postagens", unit="post"):
+    for _ in tqdm(range(num_postagens), desc="📝 Populando postagens ", unit="post"):
         tipo = random.choice(tipos_midia)
         midia = fake.image_url() if tipo != 'texto' else None
+        
+        # Determine if the post should be made on the user's profile or a group
+        if random.random() < profile_post_percentage:
+            grupo_id = None
+        else:
+            if grupo_ids:
+                grupo_id = random.choice(grupo_ids)
+            else:
+                grupo_id = None
+        
         postagem = (
             fake.text(max_nb_chars=500),
             tipo,
             midia,
             random.choice(usuario_ids),
-            random.choice([None] + grupo_ids) if random.random() > 0.5 else None
+            grupo_id
         )
         cursor.execute("""
             INSERT INTO POSTAGEM (conteudo, tipo_midia, midia, usuario_id, grupo_id)
@@ -126,7 +133,7 @@ def populate_postagens(cursor, usuario_ids, grupo_ids, num_postagens=5000):
     return postagens
 
 def populate_conexoes(cursor, usuario_ids, num_conexoes=3000):
-    for _ in tqdm(range(num_conexoes), desc="🔗 Populando conexões", unit="conexão"):
+    for _ in tqdm(range(num_conexoes), desc="🔗 Populando conexões ", unit="conexão"):
         usuarios = random.sample(usuario_ids, 2)
         try:
             cursor.execute("""
@@ -138,7 +145,7 @@ def populate_conexoes(cursor, usuario_ids, num_conexoes=3000):
 
 def populate_interacoes(cursor, usuario_ids, postagem_ids, num_interacoes=10000):
     tipos = ['curtida', 'compartilhamento', 'comentario']
-    for _ in tqdm(range(num_interacoes), desc="❤️ Populando interações", unit="interação"):
+    for _ in tqdm(range(num_interacoes), desc="❤️ Populando interações ", unit="interação"):
         interacao = (
             random.choice(tipos),
             random.choice(usuario_ids),
@@ -150,7 +157,7 @@ def populate_interacoes(cursor, usuario_ids, postagem_ids, num_interacoes=10000)
         """, interacao)
 
 def populate_mensagens(cursor, usuario_ids, num_mensagens=8000):
-    for _ in tqdm(range(num_mensagens), desc="💬 Populando mensagens", unit="mensagem"):
+    for _ in tqdm(range(num_mensagens), desc="💬 Populando mensagens ", unit="mensagem"):
         usuarios = random.sample(usuario_ids, 2)
         mensagem = (
             fake.text(max_nb_chars=200),
@@ -203,36 +210,48 @@ def print_stats(stats):
         emoji = {"curtida": "👍", "compartilhamento": "🔄", "comentario": "💬"}
         print(f"   {emoji.get(tipo, '•')} {tipo}: {count:,}")
 
-def create_database(cursor, force_recreate=False):
-   if force_recreate:
-       cursor.execute("DROP DATABASE IF EXISTS connectme")
-   
-   with open('ini_script.sql', 'r') as file:
-       sql_commands = file.read()
-       for command in sql_commands.split(';'):
-           if command.strip():
-               cursor.execute(command)
+def create_database(cursor):
+    try:
+        cursor.execute("CREATE DATABASE connectme")
+        cursor.execute("USE connectme")
+        print("Banco de dados 'connectme' criado com sucesso!")
+    except mysql.connector.Error as err:
+        print(f"Erro ao criar o banco de dados 'connectme': {err}")
+        sys.exit(1)
+               
+def truncate_tables(cursor):
+    tables = ['INTERACAO', 'MENSAGEM', 'CONEXAO', 'POSTAGEM', 'MEMBRO_GRUPO', 'GRUPO', 'USUARIO', 'MUNICIPIO', 'ESTADO']
+    for table in tables:
+        try:
+            cursor.execute(f"TRUNCATE TABLE {table}")
+        except mysql.connector.Error as err:
+            print(f"Erro ao truncar a tabela {table}: {err}")
+            sys.exit(1)
 
-BASE_USUARIOS = 3000
 PROPORCOES = {
-    'usuarios': BASE_USUARIOS,
-    'grupos': BASE_USUARIOS // 5,      # 600 grupos
-    'membros': BASE_USUARIOS * 6,      # 18000 membros
-    'postagens': BASE_USUARIOS * 20,   # 60000 posts
-    'conexoes': BASE_USUARIOS * 5,     # 15000 conexões
-    'interacoes': BASE_USUARIOS * 60,  # 180000 interações
-    'mensagens': BASE_USUARIOS * 30,   # 90000 mensagens
+    'usuarios': 3000,
+    'grupos': 600,      
+    'membros': 18000,      
+    'postagens': 60000,   
+    'conexoes': 15000,     
+    'interacoes': 180000,  
+    'mensagens': 90000,   
     'municipios': 1000
 }
 
 def main():
+    parser = argparse.ArgumentParser(description='Populate a MySQL database with sample data.')
+    parser.add_argument('--recreate', action='store_true', help='Truncate tables before populating')
+    args = parser.parse_args()
+
     conn = connect_db()
     cursor = conn.cursor()
 
-    RECREATE_DB = True
-    create_database(cursor, RECREATE_DB)
-    conn = connect_db()
-    cursor = conn.cursor()
+    if args.recreate:
+        truncate_tables(cursor)
+        print("Tabelas truncadas com sucesso.")
+    else:
+        print("Usando banco de dados e tabelas existentes.")
 
     estado_ids = populate_estados(cursor)
     municipio_ids = populate_municipios(cursor, estado_ids, PROPORCOES['municipios'])
@@ -243,12 +262,12 @@ def main():
     populate_conexoes(cursor, usuario_ids, PROPORCOES['conexoes'])
     populate_interacoes(cursor, usuario_ids, postagem_ids, PROPORCOES['interacoes'])
     populate_mensagens(cursor, usuario_ids, PROPORCOES['mensagens'])
-    
+
     conn.commit()
-    
+
     stats = get_statistics(cursor)
     print_stats(stats)
-    
+
     cursor.close()
     conn.close()
     print("\n✨ População do banco concluída com sucesso! ✨")

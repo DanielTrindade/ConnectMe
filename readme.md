@@ -99,12 +99,12 @@ connectme/
 # Clone e setup
 git clone https://github.com/seu-usuario/connectme.git
 cd connectme
-python -m venv venv
+python3 -m venv venv
 source venv/bin/activate  # Linux/Mac
 pip install -r requirements.txt
 
 # crie um arquivo .env na raiz e configure o.env
-DB_HOST=localhost #o host da sua máquina
+DB_HOST=localhost #o host do banco na sua máquina
 DB_PORT=3306
 DB_USER=connectme
 DB_PASSWORD=connectme.admin
