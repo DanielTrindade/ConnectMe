@@ -114,7 +114,7 @@ DB_NAME=connectme
 
 ## Uso
 ```bash
-python seed_script.py
+python3 seed_script.py
 ```
 
 ## Volumes Gerados
