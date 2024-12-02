@@ -97,8 +97,8 @@ connectme/
 ## Instalação
 ```bash
 # Clone e setup
-Rodar o script de criação do banco vazio(ini_script.sql) no MySQLWorckbench.
 git clone https://github.com/DanielTrindade/ConnectMe.git
+Rodar o script de criação do banco vazio(ini_script.sql) no MySQLWorckbench.
 cd connectme
 python3 -m venv venv
 source venv/bin/activate  # Linux/Mac
