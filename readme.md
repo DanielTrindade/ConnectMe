@@ -95,6 +95,24 @@ connectme/
 - Acesso root ou usuário com privilégios
 
 ## Instalação
+- Pelo arquivo mandado pelo colabweb:
+```bash
+#dentro da raiz
+#Rodar o script de criação do banco vazio(ini_script.sql) no MySQLWorckbench.
+Rodar o script de criação do banco vazio(ini_script.sql) no MySQLWorckbench.
+python3 -m venv venv
+source venv/bin/activate  # Linux/Mac
+pip install -r requirements.txt
+
+# crie um arquivo .env na raiz e configure o.env
+DB_HOST=localhost #o host do banco na sua máquina
+DB_PORT=3306
+DB_USER=connectme
+DB_PASSWORD=connectme.admin
+DB_NAME=connectme
+```
+- Pelo repositorio do github:
+
 ```bash
 # Clone e setup
 git clone https://github.com/DanielTrindade/ConnectMe.git
